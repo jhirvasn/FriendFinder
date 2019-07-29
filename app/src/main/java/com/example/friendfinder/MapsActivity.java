@@ -23,6 +23,16 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 
+import io.reactivex.Single;
+import io.reactivex.SingleObserver;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
+import retrofit2.Retrofit;
+import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
+import retrofit2.converter.gson.GsonConverterFactory;
+
 public class MapsActivity extends FragmentActivity
         implements
         GoogleMap.OnMyLocationButtonClickListener,
@@ -36,6 +46,7 @@ public class MapsActivity extends FragmentActivity
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
     private Location mLastKnownLocation;
     private boolean mPermissionDenied = false;
+    private CompositeDisposable compositeDisposable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,6 +60,8 @@ public class MapsActivity extends FragmentActivity
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        this.compositeDisposable = new CompositeDisposable();
         Log.d(TAG, "onCreate loppu");
     }
 
@@ -65,10 +78,6 @@ public class MapsActivity extends FragmentActivity
     @Override
     public void onMapReady(GoogleMap googleMap) {
         Log.d(TAG, "onMapReady nyt");
-        // Add a marker in Sydney and move the camera
-        /*LatLng sydney = new LatLng(-34, 151);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));*/
 
         mMap = googleMap;
 
@@ -76,6 +85,7 @@ public class MapsActivity extends FragmentActivity
         mMap.setOnMyLocationClickListener(this);
         enableMyLocation();
         getDeviceLocation();
+        getFriendLocation();
     }
 
     /**
@@ -92,6 +102,48 @@ public class MapsActivity extends FragmentActivity
 
     }
 
+    private void getFriendLocation() {
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("")
+                .addConverterFactory(GsonConverterFactory.create())
+                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+                .build();
+
+        // create an instance of the ApiService
+        ApiService apiService = retrofit.create(ApiService.class);
+
+        // make a request by calling the corresponding method
+        Single<LocationData> location = apiService.getLocationData();
+
+        location.subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new SingleObserver<LocationData>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        // we'll come back to this in a moment
+                        compositeDisposable.add(d);
+                    }
+
+                    @Override
+                    public void onSuccess(LocationData location) {
+                        // data is ready and we can update the UI
+                        Log.d(TAG, location.getLat().toString());
+                        Log.d(TAG, location.getLon().toString());
+                        if (mMap != null) {
+                            LatLng friend = new LatLng(location.getLat().doubleValue(), location.getLon().doubleValue());
+                            mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location"));
+                            //mMap.moveCamera(CameraUpdateFactory.newLatLng(friend));
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        // oops, we best show some error message
+                        Log.d(TAG, "onError");
+                        e.printStackTrace();
+                    }
+                });
+    }
     /**
      * Gets the current location of the device, and positions the map's camera.
      */
@@ -109,9 +161,9 @@ public class MapsActivity extends FragmentActivity
                         if (task.isSuccessful()) {
                             // Set the map's camera position to the current location of the device.
                             mLastKnownLocation = task.getResult();
-                            mMap.moveCamera(CameraUpdateFactory.newLatLng(
+                            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
                                     new LatLng(mLastKnownLocation.getLatitude(),
-                                            mLastKnownLocation.getLongitude())));
+                                            mLastKnownLocation.getLongitude()), 5f));
                         } else {
                             Log.d(TAG, "Current location is null. Using defaults.");
                             Log.e(TAG, "Exception: %s", task.getException());
@@ -151,6 +203,14 @@ public class MapsActivity extends FragmentActivity
             Toast.makeText(this,"Location permission missing",Toast.LENGTH_SHORT).show();
             mPermissionDenied = true;
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (!compositeDisposable.isDisposed()) {
+            compositeDisposable.dispose();
+        }
+        super.onDestroy();
     }
 
     /*@Override

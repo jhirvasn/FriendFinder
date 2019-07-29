@@ -11,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -51,6 +52,9 @@ public class MainActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.ACCESS_FINE_LOCATION}, MY_LOCATION_REQUEST_CODE);
             return;
         }
+        else {
+            startLocationUpdates();
+        }
         Button locationButton = findViewById(R.id.myGetLocationButton);
         locationButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
@@ -65,35 +69,29 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(in);
             }
         });
-
-        locationCallback = new LocationCallback() {
-            @Override
-            public void onLocationResult(LocationResult locationResult) {
-                if (locationResult == null) {
-                    return;
-                }
-                onLocationChanged(locationResult.getLastLocation());
-            }
-        };
     }
 
     private void fetchLastLocation() {
-        Task<Location> task = fusedLocationClient.getLastLocation();
-        task.addOnSuccessListener(new OnSuccessListener<Location>() {
-            @Override
-            public void onSuccess(Location location) {
-                if (location != null) {
-                    currentLocation = location;
-                    Toast.makeText(MainActivity.this, currentLocation.getLatitude()+" "+currentLocation.getLongitude(), Toast.LENGTH_SHORT).show();
-                    //SupportMapFragment supportMapFragment= (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
-                    //supportMapFragment.getMapAsync(MapsActivity.this);
-                    UpdateUI(currentLocation.getLatitude() + " " + currentLocation.getLongitude() +
-                            " " + currentLocation.getSpeed());
-                }else{
-                    Toast.makeText(MainActivity.this,"No Location recorded", Toast.LENGTH_SHORT).show();
+        try {
+            Task<Location> task = fusedLocationClient.getLastLocation();
+            task.addOnSuccessListener(new OnSuccessListener<Location>() {
+                @Override
+                public void onSuccess(Location location) {
+                    if (location != null) {
+                        currentLocation = location;
+                        Toast.makeText(MainActivity.this, currentLocation.getLatitude() + " " + currentLocation.getLongitude(), Toast.LENGTH_SHORT).show();
+                        //SupportMapFragment supportMapFragment= (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+                        //supportMapFragment.getMapAsync(MapsActivity.this);
+                        UpdateUI(currentLocation.getLatitude() + " " + currentLocation.getLongitude() +
+                                " " + currentLocation.getSpeed());
+                    } else {
+                        Toast.makeText(MainActivity.this, "No Location recorded", Toast.LENGTH_SHORT).show();
+                    }
                 }
-            }
-        });
+            });
+        } catch (SecurityException e)  {
+            Log.e("Exception: %s", e.getMessage());
+        }
     }
 
     @Override
@@ -191,10 +189,23 @@ public class MainActivity extends AppCompatActivity {
                     }
                 },
                 Looper.myLooper());*/
-        fusedLocationClient.requestLocationUpdates(locationRequest,
-                locationCallback,
-                Looper.myLooper());
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                if (locationResult == null) {
+                    return;
+                }
+                onLocationChanged(locationResult.getLastLocation());
+            }
+        };
 
+        try {
+            fusedLocationClient.requestLocationUpdates(locationRequest,
+                    locationCallback,
+                    Looper.myLooper());
+        } catch (SecurityException e)  {
+            Log.e("Exception: %s", e.getMessage());
+        }
     }
 
     public void onLocationChanged(Location location) {
