@@ -3,7 +3,7 @@ package com.example.friendfinder;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
-public class LocationData {
+public class Position {
 
     @SerializedName("userId")
     @Expose
