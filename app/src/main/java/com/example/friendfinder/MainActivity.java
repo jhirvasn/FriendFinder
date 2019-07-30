@@ -32,6 +32,7 @@ import com.google.android.gms.tasks.Task;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "DEBUG";
     private Location currentLocation;
     private LocationRequest locationRequest;
     private LocationCallback locationCallback;
@@ -50,9 +51,9 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.ACCESS_FINE_LOCATION}, MY_LOCATION_REQUEST_CODE);
-            return;
         }
         else {
+            Log.d(TAG, "MainActivity onCreate access granted");
             startLocationUpdates();
         }
         Button locationButton = findViewById(R.id.myGetLocationButton);
@@ -69,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(in);
             }
         });
+        Log.d(TAG, "MainActivity onCreate end");
     }
 
     private void fetchLastLocation() {
@@ -101,15 +103,16 @@ public class MainActivity extends AppCompatActivity {
                     permissions[0] == Manifest.permission.ACCESS_FINE_LOCATION &&
                     grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 //requestingLocationUpdates = true;
+                Log.d(TAG, "MainActivity onRequestPermissionResult permission hyvaksytty");
                 startLocationUpdates();
 
             }
-            } else {
-                // Permission was denied. Display an error message.
-                //requestingLocationUpdates = false;
-                Toast.makeText(this,"Location permission missing",Toast.LENGTH_SHORT).show();
-            }
+        } else {
+            // Permission was denied. Display an error message.
+            //requestingLocationUpdates = false;
+            Toast.makeText(this,"Location permission missing",Toast.LENGTH_SHORT).show();
         }
+    }
 
     /*protected void createLocationRequest() {
         locationRequest = LocationRequest.create();
@@ -155,6 +158,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (requestingLocationUpdates) {
+            Log.d(TAG, "MainActivity onResume");
             startLocationUpdates();
         }
     }

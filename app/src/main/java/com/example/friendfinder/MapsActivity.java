@@ -18,10 +18,13 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+
+import java.util.List;
 
 import io.reactivex.Single;
 import io.reactivex.SingleObserver;
@@ -104,7 +107,7 @@ public class MapsActivity extends FragmentActivity
 
     private void getFriendLocation() {
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("")
+                .baseUrl("http://www.mocky.io/")
                 .addConverterFactory(GsonConverterFactory.create())
                 .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
                 .build();
@@ -113,11 +116,11 @@ public class MapsActivity extends FragmentActivity
         ApiService apiService = retrofit.create(ApiService.class);
 
         // make a request by calling the corresponding method
-        Single<LocationData> location = apiService.getLocationData();
+        Single<List<Position>> position = apiService.getPositions();
 
-        location.subscribeOn(Schedulers.io())
+        position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new SingleObserver<LocationData>() {
+                .subscribe(new SingleObserver<List<Position>>() {
                     @Override
                     public void onSubscribe(Disposable d) {
                         // we'll come back to this in a moment
@@ -125,13 +128,14 @@ public class MapsActivity extends FragmentActivity
                     }
 
                     @Override
-                    public void onSuccess(LocationData location) {
+                    public void onSuccess(List<Position> positions) {
                         // data is ready and we can update the UI
-                        Log.d(TAG, location.getLat().toString());
-                        Log.d(TAG, location.getLon().toString());
+                        Log.d(TAG, positions.get(0).getLat().toString());
+                        Log.d(TAG, positions.get(0).getLon().toString());
                         if (mMap != null) {
-                            LatLng friend = new LatLng(location.getLat().doubleValue(), location.getLon().doubleValue());
-                            mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location"));
+                            LatLng friend = new LatLng(positions.get(0).getLat().doubleValue(), positions.get(0).getLon().doubleValue());
+                            mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location")
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)));
                             //mMap.moveCamera(CameraUpdateFactory.newLatLng(friend));
                         }
                     }
