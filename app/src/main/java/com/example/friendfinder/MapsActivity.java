@@ -6,8 +6,10 @@ import androidx.fragment.app.FragmentActivity;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Icon;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -15,13 +17,19 @@ import com.example.friendfinder.data.model.Position;
 import com.example.friendfinder.data.remote.ApiService;
 import com.example.friendfinder.data.remote.ApiUtils;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
@@ -47,12 +55,16 @@ public class MapsActivity extends FragmentActivity
 
     private static final String TAG = "DEBUG";
     private GoogleMap mMap;
+    private LocationRequest mLocationRequest;
+    private LocationCallback mLocationCallback;
     private FusedLocationProviderClient mFusedLocationProviderClient;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
     private Location mLastKnownLocation;
+    private Position mFriendPosition;
     private boolean mPermissionDenied = false;
-    private CompositeDisposable compositeDisposable;
+    private CompositeDisposable mCompositeDisposable;
     private ApiService mApiService;
+    private Marker mMarker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,7 +79,7 @@ public class MapsActivity extends FragmentActivity
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        this.compositeDisposable = new CompositeDisposable();
+        this.mCompositeDisposable = new CompositeDisposable();
 
         mApiService = ApiUtils.getApiService();
 
@@ -94,7 +106,7 @@ public class MapsActivity extends FragmentActivity
         mMap.setOnMyLocationClickListener(this);
         enableMyLocation();
         getDeviceLocation();
-        getFriendLocation();
+        //getFriendLocation();
     }
 
     /**
@@ -107,23 +119,18 @@ public class MapsActivity extends FragmentActivity
         } else if (mMap != null) {
             // Access to the location has been granted to the app.
             mMap.setMyLocationEnabled(true);
+            startLocationUpdates();
+
         }
 
     }
 
     private void getFriendLocation() {
-        /*Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("http://192.168.1.89:3000")
-                //.baseUrl("http://www.mocky.io/")
-                .addConverterFactory(GsonConverterFactory.create())
-                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                .build();
 
-        // create an instance of the ApiService
-        ApiService apiService = retrofit.create(ApiService.class);*/
+    }
 
+    private void getAllLocations() {
 
-        // make a request by calling the corresponding method
         Single<List<Position>> position = mApiService.getPositions();
 
         position.subscribeOn(Schedulers.io())
@@ -131,18 +138,17 @@ public class MapsActivity extends FragmentActivity
                 .subscribe(new SingleObserver<List<Position>>() {
                     @Override
                     public void onSubscribe(Disposable d) {
-                        // we'll come back to this in a moment
-                        compositeDisposable.add(d);
+                        mCompositeDisposable.add(d);
                     }
 
                     @Override
                     public void onSuccess(List<Position> positions) {
-                        // data is ready and we can update the UI
+
                         if (positions.size() > 0) {
-                            Log.d(TAG, positions.get(0).getLat().toString());
-                            Log.d(TAG, positions.get(0).getLon().toString());
+                            Log.d(TAG, positions.get(2).getLat().toString());
+                            Log.d(TAG, positions.get(2).getLon().toString());
                             if (mMap != null) {
-                                LatLng friend = new LatLng(positions.get(0).getLat().doubleValue(), positions.get(0).getLon().doubleValue());
+                                LatLng friend = new LatLng(positions.get(2).getLat().doubleValue(), positions.get(2).getLon().doubleValue());
                                 mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location")
                                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)));
                                 //mMap.moveCamera(CameraUpdateFactory.newLatLng(friend));
@@ -152,62 +158,68 @@ public class MapsActivity extends FragmentActivity
 
                     @Override
                     public void onError(Throwable e) {
-                        // oops, we best show some error message
                         Log.d(TAG, "onError");
                         e.printStackTrace();
                     }
                 });
+    }
 
-        // make a request by calling the corresponding method
-        /*Single<List<Position>> position = apiService.getPosition(1);
+    private void getLocation() {
+
+        Single<List<Position>> position = mApiService.getPosition(6);
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new SingleObserver<List<Position>>() {
                     @Override
                     public void onSubscribe(Disposable d) {
-                        // we'll come back to this in a moment
-                        compositeDisposable.add(d);
+                        mCompositeDisposable.add(d);
                     }
 
                     @Override
                     public void onSuccess(List<Position> positions) {
-                        // data is ready and we can update the UI
+
                         if (positions.size() > 0) {
                             Log.d(TAG, positions.get(0).getLat().toString());
                             Log.d(TAG, positions.get(0).getLon().toString());
-                            if (mMap != null) {
+
+                            mFriendPosition = positions.get(0);
+
+                            /*if (mMap != null) {
                                 LatLng friend = new LatLng(positions.get(0).getLat().doubleValue(), positions.get(0).getLon().doubleValue());
                                 mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location")
+                                        .snippet()
                                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)));
                                 //mMap.moveCamera(CameraUpdateFactory.newLatLng(friend));
-                            }
+                                mMap.
+                            }*/
                         }
                     }
 
                     @Override
                     public void onError(Throwable e) {
-                        // oops, we best show some error message
+
                         Log.d(TAG, "onError");
                         e.printStackTrace();
                     }
-                });*/
+                });
+    }
 
-        // make a request by calling the corresponding method
-        /*Single<Position> position = apiService.createPosition(new Position(null, 55.0, 26.1));
+    private void saveLocation() {
+
+        Single<Position> position = mApiService.createPosition(new Position(null, 55.0, 26.1, 0));
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new SingleObserver<Position>() {
                     @Override
                     public void onSubscribe(Disposable d) {
-                        // we'll come back to this in a moment
-                        compositeDisposable.add(d);
+                        mCompositeDisposable.add(d);
                     }
 
                     @Override
                     public void onSuccess(Position position) {
-                        // data is ready and we can update the UI
+
                         if (position == null) {
                             Log.d(TAG, "onSuccess: position == null");
                         }
@@ -218,27 +230,25 @@ public class MapsActivity extends FragmentActivity
 
                     @Override
                     public void onError(Throwable e) {
-                        // oops, we best show some error message
                         Log.d(TAG, "onError");
                         e.printStackTrace();
                     }
-                });*/
+                });
+    }
 
-        // make a request by calling the corresponding method
-        /*Single<Position> position = apiService.updatePosition(9, new Position(null, 70.0, 25.44));
+    private void updateLocation(Position pos) {
+        Single<Position> position = mApiService.updatePosition(1, pos);
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new SingleObserver<Position>() {
                     @Override
                     public void onSubscribe(Disposable d) {
-                        // we'll come back to this in a moment
-                        compositeDisposable.add(d);
+                        mCompositeDisposable.add(d);
                     }
 
                     @Override
                     public void onSuccess(Position position) {
-                        // data is ready and we can update the UI
                         if (position == null) {
                             Log.d(TAG, "onSuccess: position == null");
                         }
@@ -249,26 +259,26 @@ public class MapsActivity extends FragmentActivity
 
                     @Override
                     public void onError(Throwable e) {
-                        // oops, we best show some error message
                         Log.d(TAG, "onError");
                         e.printStackTrace();
                     }
-                });*/
+                });
+    }
 
-        /*Single<Position> position = apiService.deletePosition(9);
+    private void deleteLocation() {
+
+        Single<Position> position = mApiService.deletePosition(10);
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new SingleObserver<Position>() {
                     @Override
                     public void onSubscribe(Disposable d) {
-                        // we'll come back to this in a moment
-                        compositeDisposable.add(d);
+                        mCompositeDisposable.add(d);
                     }
 
                     @Override
                     public void onSuccess(Position position) {
-                        // data is ready and we can update the UI
                         if (position == null) {
                             Log.d(TAG, "onSuccess: position == null");
                         }
@@ -279,11 +289,10 @@ public class MapsActivity extends FragmentActivity
 
                     @Override
                     public void onError(Throwable e) {
-                        // oops, we best show some error message
                         Log.d(TAG, "onError");
                         e.printStackTrace();
                     }
-                });*/
+                });
     }
     /**
      * Gets the current location of the device, and positions the map's camera.
@@ -348,10 +357,100 @@ public class MapsActivity extends FragmentActivity
 
     @Override
     protected void onDestroy() {
-        if (!compositeDisposable.isDisposed()) {
-            compositeDisposable.dispose();
+        if (!mCompositeDisposable.isDisposed()) {
+            mCompositeDisposable.dispose();
         }
         super.onDestroy();
+    }
+
+    private void startLocationUpdates() {
+
+        // Create the location request to start receiving updates
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setInterval(10000);
+        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        // Create LocationSettingsRequest object using location request
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
+        builder.addLocationRequest(mLocationRequest);
+        LocationSettingsRequest locationSettingsRequest = builder.build();
+
+        // Check whether location settings are satisfied
+        // https://developers.google.com/android/reference/com/google/android/gms/location/SettingsClient
+        SettingsClient settingsClient = LocationServices.getSettingsClient(this);
+        settingsClient.checkLocationSettings(locationSettingsRequest);
+
+        mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                if (locationResult == null) {
+                    return;
+                }
+                onLocationChanged(locationResult.getLastLocation());
+            }
+        };
+
+        try {
+            mFusedLocationProviderClient.requestLocationUpdates(mLocationRequest,
+                    mLocationCallback,
+                    Looper.myLooper());
+        } catch (SecurityException e)  {
+            Log.e("Exception: %s", e.getMessage());
+        }
+    }
+
+    public void onLocationChanged(Location location) {
+
+        getLocation();
+
+        LatLng friend = null;
+
+        if (mFriendPosition != null) {
+            friend = new LatLng(mFriendPosition.getLat(), mFriendPosition.getLon());
+        }
+
+        Position myPos = new Position(null, location.getLatitude(), location.getLongitude(), 0);
+        updateLocation(myPos);
+
+        Location targetLocation = new Location("");
+        if (mFriendPosition != null) {
+            targetLocation.setLatitude(mFriendPosition.getLat());
+            targetLocation.setLongitude(mFriendPosition.getLon());
+        }
+
+        float distance = location.distanceTo(targetLocation) / 1000;
+
+        String msg = "Updated Location: " +
+                Double.toString(location.getLatitude()) + ", " +
+                Double.toString(location.getLongitude()) + " " +
+                String.format("%.2f", distance) + " km";
+        //Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+
+        if (friend != null && mMarker == null && mMap != null) {
+            mMarker = mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location")
+                    .snippet("Distance: " + String.format("%.2f", distance) + " km")
+                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.red_dot)));
+            //mMap.moveCamera(CameraUpdateFactory.newLatLng(friend));
+        }
+        else if (friend != null && mMarker != null) {
+            mMarker.setPosition(friend);
+            mMarker.setSnippet("Distance: " + String.format("%.2f", distance) + " km");
+        }
+
+        Log.d(TAG, msg);
+
+        //UpdateUI(msg);
+        // You can now create a LatLng Object for use with maps
+        //LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mFusedLocationProviderClient != null)
+            Log.d(TAG, "onStop");
+            mFusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
     }
 
     /*@Override

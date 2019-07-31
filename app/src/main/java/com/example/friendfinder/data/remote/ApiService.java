@@ -21,6 +21,10 @@ public interface ApiService {
     @GET("locations/{location_id}")
     Single<List<Position>> getPosition(@Path("location_id") int locationId);
 
+    // get user location
+    /*@GET("locations/{user_id}")
+    Single<List<Position>> getPosition(@Path("user_id") int userId);*/
+
     // create one
     @POST("locations")
     Single<Position> createPosition(@Body Position position);
