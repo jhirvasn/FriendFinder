@@ -166,7 +166,7 @@ public class MapsActivity extends FragmentActivity
 
     private void getLocation() {
 
-        Single<List<Position>> position = mApiService.getPosition(6);
+        Single<List<Position>> position = mApiService.getPosition(1);
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -237,7 +237,7 @@ public class MapsActivity extends FragmentActivity
     }
 
     private void updateLocation(Position pos) {
-        Single<Position> position = mApiService.updatePosition(1, pos);
+        Single<Position> position = mApiService.updatePosition(2, pos);
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -410,7 +410,7 @@ public class MapsActivity extends FragmentActivity
             friend = new LatLng(mFriendPosition.getLat(), mFriendPosition.getLon());
         }
 
-        Position myPos = new Position(null, location.getLatitude(), location.getLongitude(), 0);
+        Position myPos = new Position(null, location.getLatitude(), location.getLongitude(), 2);
         updateLocation(myPos);
 
         Location targetLocation = new Location("");
