@@ -1,34 +1,43 @@
 package com.example.friendfinder;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
 import android.content.Intent;
-import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.common.api.ResolvableApiException;
+import com.example.friendfinder.data.model.Position;
+import com.example.friendfinder.data.model.User;
+import com.example.friendfinder.data.remote.ApiService;
+import com.example.friendfinder.data.remote.ApiUtils;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
-import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.SettingsClient;
-import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+
+import java.util.List;
+
+import io.reactivex.Single;
+import io.reactivex.SingleObserver;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,13 +47,30 @@ public class MainActivity extends AppCompatActivity {
     private LocationCallback locationCallback;
     private FusedLocationProviderClient fusedLocationClient;
     private static final int MY_LOCATION_REQUEST_CODE = 110;
-    private static final int REQUEST_CHECK_SETTINGS = 555;
+    //private static final int REQUEST_CHECK_SETTINGS = 555;
     private boolean requestingLocationUpdates = true;
+    private CompositeDisposable mCompositeDisposable;
+    private ApiService mApiService;
+    private String myDeviceId;
+    private User mUser;
+    private Button mAddFriendButton;
+    private Button mOpenMapButton;
+    private TextView mPairingNumberTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        this.mCompositeDisposable = new CompositeDisposable();
+
+        myDeviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        Log.d(TAG, myDeviceId);
+
+        mApiService = ApiUtils.getApiService();
+
+        //StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        //StrictMode.setThreadPolicy(policy);
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
@@ -56,6 +82,26 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "MainActivity onCreate access granted");
             startLocationUpdates();
         }
+
+        TextView myDeviceIdTextView = findViewById(R.id.myDeviceIdTextView);
+        myDeviceIdTextView.setText("Your Device ID: " + myDeviceId);
+
+        Button checkUserButton = findViewById(R.id.myCheckUserButton);
+        checkUserButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                getUser(myDeviceId);
+            }
+        });
+
+        mAddFriendButton = findViewById(R.id.myAddFriendButton);
+        mAddFriendButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                // avaa activity missä voi lisätä
+                Intent in = new Intent(MainActivity.this, AddFriendActivity.class);
+                startActivity(in);
+            }
+        });
+
         Button locationButton = findViewById(R.id.myGetLocationButton);
         locationButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
@@ -63,14 +109,131 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        Button openMapButton = findViewById(R.id.myOpenMapButton);
-        openMapButton.setOnClickListener(new View.OnClickListener() {
+        mOpenMapButton = findViewById(R.id.myOpenMapButton);
+        mOpenMapButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 Intent in = new Intent(MainActivity.this, MapsActivity.class);
                 startActivity(in);
             }
         });
+
+        mAddFriendButton.setEnabled(false);
+        mOpenMapButton.setEnabled(false);
+
         Log.d(TAG, "MainActivity onCreate end");
+    }
+
+    private void getUser(final String myDeviceId) {
+
+        Single<List<User>> user = mApiService.getUser(myDeviceId);
+
+        user.subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new SingleObserver<List<User>>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        mCompositeDisposable.add(d);
+                    }
+
+                    @Override
+                    public void onSuccess(List<User> users) {
+
+                        //Log.d(TAG, "getUser onSuccess");
+                        if (users.size() > 0) {
+                            Log.d(TAG, users.get(0).getDeviceId());
+                            Log.d(TAG, users.get(0).getPairingNumber());
+
+                            mUser = users.get(0);
+                            Toast.makeText(MainActivity.this, "User found", Toast.LENGTH_LONG).show();
+                            mAddFriendButton.setEnabled(true);
+                            mOpenMapButton.setEnabled(true);
+
+                            mPairingNumberTextView = findViewById(R.id.myPairingNumberTextView);
+                            mPairingNumberTextView.setText("Your pairing number: " + users.get(0).getPairingNumber());
+                        }
+                        else {
+                            Toast.makeText(MainActivity.this, "User not found, creating user", Toast.LENGTH_LONG).show();
+                            mAddFriendButton.setEnabled(false);
+                            mOpenMapButton.setEnabled(false);
+                            saveUser(myDeviceId);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                        Log.d(TAG, "getUser onError");
+                        e.printStackTrace();
+                    }
+                });
+    }
+
+    private void saveUser(final String myDeviceId) {
+
+        Single<User> user = mApiService.createUser(new User(myDeviceId));
+
+        user.subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new SingleObserver<User>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        mCompositeDisposable.add(d);
+                    }
+
+                    @Override
+                    public void onSuccess(User user) {
+
+                        if (user == null) {
+                            Log.d(TAG, "onSuccess: user == null");
+                        }
+                        else {
+                            Log.d(TAG, user.toString());
+                        }
+                        Toast.makeText(MainActivity.this, "User saved", Toast.LENGTH_LONG).show();
+                        mAddFriendButton.setEnabled(true);
+                        mOpenMapButton.setEnabled(true);
+                        saveLocation(new Position(null, 0.0, 0.0, myDeviceId));
+                        getUser(myDeviceId);
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        Log.d(TAG, "saveUser onError");
+                        e.printStackTrace();
+                    }
+                });
+    }
+
+    private void saveLocation(Position pos) {
+
+        Single<Position> position = mApiService.createPosition(pos);
+
+        position.subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new SingleObserver<Position>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        mCompositeDisposable.add(d);
+                    }
+
+                    @Override
+                    public void onSuccess(Position position) {
+
+                        Log.d(TAG, "saveLocation onSuccess: position == null");
+                        if (position == null) {
+                            Log.d(TAG, "onSuccess: position == null");
+                        }
+                        else {
+                            Log.d(TAG, position.toString());
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        Log.d(TAG, "onError");
+                        e.printStackTrace();
+                    }
+                });
     }
 
     private void fetchLastLocation() {
@@ -114,46 +277,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /*protected void createLocationRequest() {
-        locationRequest = LocationRequest.create();
-        locationRequest.setInterval(10000);
-        locationRequest.setFastestInterval(5000);
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
-                .addLocationRequest(locationRequest);
-
-        SettingsClient client = LocationServices.getSettingsClient(this);
-        Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
-        task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
-            @Override
-            public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
-                // All location settings are satisfied. The client can initialize
-                // location requests here.
-                // ...
-            }
-        });
-
-        task.addOnFailureListener(this, new OnFailureListener() {
-            @Override
-            public void onFailure(@NonNull Exception e) {
-                if (e instanceof ResolvableApiException) {
-                    // Location settings are not satisfied, but this can be fixed
-                    // by showing the user a dialog.
-                    try {
-                        // Show the dialog by calling startResolutionForResult(),
-                        // and check the result in onActivityResult().
-                        ResolvableApiException resolvable = (ResolvableApiException) e;
-                        resolvable.startResolutionForResult(MainActivity.this,
-                                REQUEST_CHECK_SETTINGS);
-                    } catch (IntentSender.SendIntentException sendEx) {
-                        // Ignore the error.
-                    }
-                }
-            }
-        });
-    }*/
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -181,18 +304,6 @@ public class MainActivity extends AppCompatActivity {
         SettingsClient settingsClient = LocationServices.getSettingsClient(this);
         settingsClient.checkLocationSettings(locationSettingsRequest);
 
-        // new Google API SDK v11 uses getFusedLocationProviderClient(this)
-        /*fusedLocationClient.requestLocationUpdates(locationRequest, new LocationCallback() {
-                    @Override
-                    public void onLocationResult(LocationResult locationResult) {
-                        // do work here
-                        if (locationResult == null) {
-                            return;
-                        }
-                        onLocationChanged(locationResult.getLastLocation());
-                    }
-                },
-                Looper.myLooper());*/
         locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
@@ -233,6 +344,14 @@ public class MainActivity extends AppCompatActivity {
     private void UpdateUI(String msg) {
         TextView myTextView = findViewById(R.id.myLocationTextView);
         myTextView.setText(msg);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (!mCompositeDisposable.isDisposed()) {
+            mCompositeDisposable.dispose();
+        }
+        super.onDestroy();
     }
 
 }

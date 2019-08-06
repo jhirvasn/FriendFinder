@@ -13,6 +13,7 @@
         android:layout_marginTop="200dp"
         android:layout_marginBottom="58dp"
         android:text="Location"
+        android:visibility="invisible"
         app:layout_constraintBottom_toTopOf="@+id/myGetLocationButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
@@ -28,6 +29,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="274dp"
         android:text="Get location"
+        android:visibility="invisible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -42,5 +44,48 @@
         android:text="Open map"
         app:layout_constraintEnd_toEndOf="@+id/myGetLocationButton"
         app:layout_constraintTop_toBottomOf="@+id/myGetLocationButton" />
+
+    <Button
+        android:id="@+id/myCheckUserButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="112dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="20dp"
+        android:text="Check if user exists"
+        app:layout_constraintBottom_toTopOf="@+id/myLocationTextView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/myAddFriendButton" />
+
+    <TextView
+        android:id="@+id/myDeviceIdTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="80dp"
+        android:text="Your Device ID:"
+        android:visibility="visible"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/myAddFriendButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:text="Add friend"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/myPairingNumberTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:text="Your pairing number:"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/myDeviceIdTextView" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

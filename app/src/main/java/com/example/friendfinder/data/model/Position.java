@@ -14,15 +14,15 @@ public class Position {
     @SerializedName("lon")
     @Expose
     private Double lon;
-    @SerializedName("userId")
+    @SerializedName("deviceId")
     @Expose
-    private Integer userId;
+    private String deviceId;
 
-    public Position(Integer locationId, Double lat, Double lon, Integer userId) {
+    public Position(Integer locationId, Double lat, Double lon, String deviceId) {
         this.locationId = locationId;
         this.lat = lat;
         this.lon = lon;
-        this.userId = userId;
+        this.deviceId = deviceId;
     }
 
     public Integer getLocationId() {
@@ -49,12 +49,12 @@ public class Position {
         this.lon = lon;
     }
 
-    public Integer getUserId() {
-        return userId;
+    public String getDeviceId() {
+        return deviceId;
     }
 
-    public void setUserId(Integer userId) {
-        this.userId = userId;
+    public void setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
     }
 
     @Override
@@ -63,7 +63,7 @@ public class Position {
                 "locationId=" + locationId +
                 ", lat=" + lat +
                 ", lon=" + lon +
-                ", userId=" + userId +
+                ", deviceId=" + deviceId +
                 '}';
     }
 }

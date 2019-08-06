@@ -10,10 +10,12 @@ import android.graphics.drawable.Icon;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
 
 import com.example.friendfinder.data.model.Position;
+import com.example.friendfinder.data.model.User;
 import com.example.friendfinder.data.remote.ApiService;
 import com.example.friendfinder.data.remote.ApiUtils;
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -34,6 +36,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import io.reactivex.Single;
@@ -42,9 +45,6 @@ import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
-import retrofit2.Retrofit;
-import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
-import retrofit2.converter.gson.GsonConverterFactory;
 
 public class MapsActivity extends FragmentActivity
         implements
@@ -60,16 +60,20 @@ public class MapsActivity extends FragmentActivity
     private FusedLocationProviderClient mFusedLocationProviderClient;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
     private Location mLastKnownLocation;
-    private Position mFriendPosition;
+    private List<Position> mFriendPositions;
     private boolean mPermissionDenied = false;
     private CompositeDisposable mCompositeDisposable;
     private ApiService mApiService;
-    private Marker mMarker;
+    private List<Marker> mMarkers;
+    private String myDeviceId;
+    private List<User> mFriends;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
+        myDeviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
 
         // Construct a FusedLocationProviderClient.
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
@@ -83,6 +87,8 @@ public class MapsActivity extends FragmentActivity
 
         mApiService = ApiUtils.getApiService();
 
+        getYourFriends(myDeviceId);
+
         Log.d(TAG, "onCreate loppu");
     }
 
@@ -90,8 +96,7 @@ public class MapsActivity extends FragmentActivity
     /**
      * Manipulates the map once available.
      * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
+     * This is where we can add markers or lines, add listeners or move the camera.
      * If Google Play services is not installed on the device, the user will be prompted to install
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
@@ -106,7 +111,6 @@ public class MapsActivity extends FragmentActivity
         mMap.setOnMyLocationClickListener(this);
         enableMyLocation();
         getDeviceLocation();
-        //getFriendLocation();
     }
 
     /**
@@ -125,11 +129,7 @@ public class MapsActivity extends FragmentActivity
 
     }
 
-    private void getFriendLocation() {
-
-    }
-
-    private void getAllLocations() {
+    /*private void getAllLocations() {
 
         Single<List<Position>> position = mApiService.getPositions();
 
@@ -162,11 +162,11 @@ public class MapsActivity extends FragmentActivity
                         e.printStackTrace();
                     }
                 });
-    }
+    }*/
 
-    private void getLocation() {
+    private void getLocation(String deviceId) {
 
-        Single<List<Position>> position = mApiService.getPosition(1);
+        Single<List<Position>> position = mApiService.getPosition(deviceId);
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -183,7 +183,13 @@ public class MapsActivity extends FragmentActivity
                             Log.d(TAG, positions.get(0).getLat().toString());
                             Log.d(TAG, positions.get(0).getLon().toString());
 
-                            mFriendPosition = positions.get(0);
+                            if (mFriendPositions != null) {
+                                mFriendPositions.add(positions.get(0));
+                            }
+                            else {
+                                mFriendPositions = new ArrayList<>();
+                                mFriendPositions.add(positions.get(0));
+                            }
 
                             /*if (mMap != null) {
                                 LatLng friend = new LatLng(positions.get(0).getLat().doubleValue(), positions.get(0).getLon().doubleValue());
@@ -205,39 +211,8 @@ public class MapsActivity extends FragmentActivity
                 });
     }
 
-    private void saveLocation() {
-
-        Single<Position> position = mApiService.createPosition(new Position(null, 55.0, 26.1, 0));
-
-        position.subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new SingleObserver<Position>() {
-                    @Override
-                    public void onSubscribe(Disposable d) {
-                        mCompositeDisposable.add(d);
-                    }
-
-                    @Override
-                    public void onSuccess(Position position) {
-
-                        if (position == null) {
-                            Log.d(TAG, "onSuccess: position == null");
-                        }
-                        else {
-                            Log.d(TAG, position.toString());
-                        }
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        Log.d(TAG, "onError");
-                        e.printStackTrace();
-                    }
-                });
-    }
-
-    private void updateLocation(Position pos) {
-        Single<Position> position = mApiService.updatePosition(2, pos);
+    private void updateLocation(String deviceId, Position pos) {
+        Single<Position> position = mApiService.updatePosition(deviceId, pos);
 
         position.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -265,7 +240,7 @@ public class MapsActivity extends FragmentActivity
                 });
     }
 
-    private void deleteLocation() {
+    /*private void deleteLocation() {
 
         Single<Position> position = mApiService.deletePosition(10);
 
@@ -293,7 +268,44 @@ public class MapsActivity extends FragmentActivity
                         e.printStackTrace();
                     }
                 });
+    }*/
+
+    private void getYourFriends(String deviceId) {
+
+        Single<List<User>> friends = mApiService.getYourFriends(deviceId);
+
+        friends.subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new SingleObserver<List<User>>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+                        mCompositeDisposable.add(d);
+                    }
+
+                    @Override
+                    public void onSuccess(List<User> users) {
+
+                        if (users.size() > 0) {
+                            Log.d(TAG, users.get(0).getDeviceId());
+                            Log.d(TAG, users.get(0).getPairingNumber());
+
+                            mFriends = users;
+
+                        }
+                        else {
+                            Toast.makeText(MapsActivity.this, "You have no friends!", Toast.LENGTH_LONG).show();
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                        Log.d(TAG, "onError");
+                        e.printStackTrace();
+                    }
+                });
     }
+
     /**
      * Gets the current location of the device, and positions the map's camera.
      */
@@ -337,7 +349,7 @@ public class MapsActivity extends FragmentActivity
 
     @Override
     public void onMyLocationClick(@NonNull Location location) {
-        Toast.makeText(this, "Current location:\n" + location, Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Current location:\n" + location.getLatitude() + " " + location.getLongitude(), Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -402,56 +414,148 @@ public class MapsActivity extends FragmentActivity
 
     public void onLocationChanged(Location location) {
 
-        getLocation();
-
-        LatLng friend = null;
-
-        if (mFriendPosition != null) {
-            friend = new LatLng(mFriendPosition.getLat(), mFriendPosition.getLon());
+        if (mFriends != null) {
+            for (User friend : mFriends) {
+                getLocation(friend.getDeviceId());
+            }
         }
 
-        Position myPos = new Position(null, location.getLatitude(), location.getLongitude(), 2);
-        updateLocation(myPos);
+        List<LatLng> friends = null;
 
-        Location targetLocation = new Location("");
-        if (mFriendPosition != null) {
-            targetLocation.setLatitude(mFriendPosition.getLat());
-            targetLocation.setLongitude(mFriendPosition.getLon());
+        if (mFriendPositions != null && mFriendPositions.size() > 0) {
+            for (Position pos : mFriendPositions) {
+                if (friends == null) {
+                    friends = new ArrayList<>();
+                    friends.add(new LatLng(pos.getLat(), pos.getLon()));
+                }
+                else {
+                    friends.add(new LatLng(pos.getLat(), pos.getLon()));
+                }
+            }
         }
 
-        float distance = location.distanceTo(targetLocation) / 1000;
+        Position myPos = new Position(null, location.getLatitude(), location.getLongitude(), myDeviceId);
+        updateLocation(myDeviceId, myPos);
 
-        String msg = "Updated Location: " +
-                Double.toString(location.getLatitude()) + ", " +
-                Double.toString(location.getLongitude()) + " " +
-                String.format("%.2f", distance) + " km";
+        List<Location> targetLocations = null;
+        if (mFriendPositions != null && mFriendPositions.size() > 0) {
+            for (Position pos : mFriendPositions) {
+
+                Location targetLocation = new Location("");
+                targetLocation.setLatitude(pos.getLat());
+                targetLocation.setLongitude(pos.getLon());
+
+                if (targetLocations == null) {
+                    targetLocations = new ArrayList<>();
+                    targetLocations.add(targetLocation);
+                }
+                else {
+                    targetLocations.add(targetLocation);
+                }
+            }
+        }
+
+        List<Float> distances = null;
+        if (targetLocations != null && targetLocations.size() > 0) {
+            for (Location loc : targetLocations) {
+
+                float distance = location.distanceTo(loc) / 1000;
+
+                if (distances == null) {
+                    distances = new ArrayList<>();
+                    distances.add(distance);
+                }
+                else {
+                    distances.add(distance);
+                }
+            }
+        }
+
+        if (distances != null && distances.size() > 0) {
+            int i = 0;
+            for (Float distance : distances) {
+                String msg = "Updated Location " + i + ": " +
+                        Double.toString(location.getLatitude()) + ", " +
+                        Double.toString(location.getLongitude()) + " " +
+                        String.format("%.2f", distance) + " km";
+                Log.d(TAG, msg);
+                i++;
+            }
+        }
+
         //Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
 
-        if (friend != null && mMarker == null && mMap != null) {
-            mMarker = mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location")
-                    .snippet("Distance: " + String.format("%.2f", distance) + " km")
-                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.red_dot)));
-            //mMap.moveCamera(CameraUpdateFactory.newLatLng(friend));
-        }
-        else if (friend != null && mMarker != null) {
-            mMarker.setPosition(friend);
-            mMarker.setSnippet("Distance: " + String.format("%.2f", distance) + " km");
-        }
+        if (friends != null && distances != null && mMarkers == null && mMap != null) {
+            int index = 0;
+            for (LatLng friend : friends) {
+                Marker newMarker = mMap.addMarker(new MarkerOptions().position(friend).title("Friend's location")
+                        .snippet("Distance: " + String.format("%.2f", distances.get(index)) + " km")
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.red_dot)));
+                //mMap.moveCamera(CameraUpdateFactory.newLatLng(friend));
 
-        Log.d(TAG, msg);
+                if (mMarkers == null) {
+                    mMarkers = new ArrayList<>();
+                    mMarkers.add(newMarker);
+                }
+                else {
+                    mMarkers.add(newMarker);
+                }
+
+                index++;
+            }
+        }
+        else if (friends != null && distances != null && mMarkers != null) {
+            int j = 0;
+            for (Marker marker : mMarkers) {
+                marker.setPosition(friends.get(j));
+                marker.setSnippet("Distance: " + String.format("%.2f", distances.get(j)) + " km");
+                j++;
+            }
+        }
 
         //UpdateUI(msg);
         // You can now create a LatLng Object for use with maps
         //LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+
+        if (mFriends != null && friends != null && mFriendPositions != null && targetLocations != null &&
+            distances != null && mMarkers != null) {
+            Log.d(TAG, "mFriends size: " + mFriends.size());
+            Log.d(TAG, "friends size: " + friends.size());
+            Log.d(TAG, "mFriendPositions size: " + mFriendPositions.size());
+            Log.d(TAG, "targetLocations size: " + targetLocations.size());
+            Log.d(TAG, "distances size: " + distances.size());
+            Log.d(TAG, "mMarkers size: " + mMarkers.size());
+        }
+
+        if (friends != null && mFriendPositions != null && targetLocations != null && distances != null) {
+            friends.clear();
+            mFriendPositions.clear();
+            targetLocations.clear();
+            distances.clear();
+        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        if (mFusedLocationProviderClient != null)
+        if (mFusedLocationProviderClient != null) {
             Log.d(TAG, "onStop");
             mFusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
+
+            /*if (mFriendPositions != null && mMarkers != null) {
+                mFriendPositions.clear();
+                mMarkers.clear();
+            }*/
+        }
     }
+
+    /*@Override
+    protected void onResume() {
+        super.onResume();
+        if (!mPermissionDenied) {
+            startLocationUpdates();
+        }
+    }*/
 
     /*@Override
     protected void onResumeFragments() {
