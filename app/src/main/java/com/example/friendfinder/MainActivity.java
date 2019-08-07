@@ -162,6 +162,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onError(Throwable e) {
 
+                        Toast.makeText(MainActivity.this, "Something went wrong", Toast.LENGTH_LONG).show();
                         Log.d(TAG, "getUser onError");
                         e.printStackTrace();
                     }

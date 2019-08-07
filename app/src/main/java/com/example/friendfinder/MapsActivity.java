@@ -224,16 +224,12 @@ public class MapsActivity extends FragmentActivity
 
                     @Override
                     public void onSuccess(Position position) {
-                        if (position == null) {
-                            Log.d(TAG, "onSuccess: position == null");
-                        }
-                        else {
-                            Log.d(TAG, position.toString());
-                        }
+                        Log.d(TAG, position.toString());
                     }
 
                     @Override
                     public void onError(Throwable e) {
+                        Toast.makeText(MapsActivity.this, "Something went wrong", Toast.LENGTH_LONG).show();
                         Log.d(TAG, "onError");
                         e.printStackTrace();
                     }
@@ -517,7 +513,7 @@ public class MapsActivity extends FragmentActivity
         // You can now create a LatLng Object for use with maps
         //LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
 
-        if (mFriends != null && friends != null && mFriendPositions != null && targetLocations != null &&
+        /*if (mFriends != null && friends != null && mFriendPositions != null && targetLocations != null &&
             distances != null && mMarkers != null) {
             Log.d(TAG, "mFriends size: " + mFriends.size());
             Log.d(TAG, "friends size: " + friends.size());
@@ -525,7 +521,7 @@ public class MapsActivity extends FragmentActivity
             Log.d(TAG, "targetLocations size: " + targetLocations.size());
             Log.d(TAG, "distances size: " + distances.size());
             Log.d(TAG, "mMarkers size: " + mMarkers.size());
-        }
+        }*/
 
         if (friends != null && mFriendPositions != null && targetLocations != null && distances != null) {
             friends.clear();
