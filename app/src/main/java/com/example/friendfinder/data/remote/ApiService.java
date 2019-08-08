@@ -58,4 +58,9 @@ public interface ApiService {
     // create friend pair
     @POST("friends")
     Single<Friend> createFriendPair(@Body Friend friend);
+
+    // delete friend pair
+    @DELETE("friends/{device_id1}/{device_id2}")
+    Single<Friend> deleteFriendPair(@Path("device_id1") String deviceId1,
+                                    @Path("device_id2") String deviceId2);
 }
